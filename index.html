@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LLM Frontend</title>
+  <style>
+html {
+  height: 100%;
+}
+
+body {
+  padding: 0;
+  margin: 0 auto;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  resize: none;
+  border: none;
+  flex-grow: 1;
+  padding: 0.5rem;
+}
+
+button {
+  display: block;
+  width: 100%;
+  padding: 1.5rem;
+  font-size: 1.5rem;
+  border: none;
+  background: wheat;
+}
+  </style>
+</head>
+<body>
+  <textarea id="prompt" placeholder="Write your prompt here..."></textarea>
+  <button id="submit">Generate</button>
+  <script>
+let controller = null;
+const text = document.getElementById("prompt");
+const button = document.getElementById("submit");
+
+async function complete(text, abortSignal) {
+  try {
+    const response = await fetch("/api/v1/completions", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'mistral-rp',
+        prompt: text.value,
+        stream: true,
+      }),
+      signal: abortSignal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunks = decoder.decode(value).split('\n\n');
+      for (const chunk of chunks) {
+        if (chunk.startsWith('data: ')) {
+          const data = chunk.substr(6);
+          if (data == '[DONE]') {
+            break;
+          }
+
+          const json = JSON.parse(data);
+          text.value += json.choices[0].text;
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      console.error(error);
+    }
+  }
+
+  button.innerHTML = "Generate";
+  controller = null;
+
+  localStorage.setItem("prompt", text.value);
+}
+
+function submit(e) {
+  e.preventDefault();
+
+  if (controller === null) {
+    button.innerHTML = "Stop";
+    controller = new AbortController();
+    complete(text, controller.signal);
+  } else {
+    controller.abort();
+  }
+}
+
+// Load saved content from localStorage when the page loads
+window.addEventListener("load", () => {
+  const savedContent = localStorage.getItem("prompt");
+  if (savedContent) {
+    text.value = savedContent;
+  }
+});
+
+button.addEventListener("click", submit);
+text.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    submit(e)
+  }
+});
+  </script>
+</body>
+</html>
