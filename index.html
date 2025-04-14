@@ -20,7 +20,7 @@ body {
   color: white;
 }
 
-textarea {
+textarea, input {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -30,6 +30,10 @@ textarea {
   padding: 0.5rem;
   background: #222;
   color: white;
+}
+
+input {
+  flex-grow: 0;
 }
 
 button {
@@ -44,12 +48,14 @@ button {
   </style>
 </head>
 <body>
+  <input id="model-name" type="text" placeholder="Enter model name here..." />
   <textarea id="prompt" placeholder="Write your prompt here..."></textarea>
   <button id="submit">Generate</button>
   <script>
 let controller = null;
 const text = document.getElementById("prompt");
 const button = document.getElementById("submit");
+const modelName = document.getElementById("model-name");
 
 async function complete(text, abortSignal) {
   try {
@@ -59,8 +65,11 @@ async function complete(text, abortSignal) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'mistral-rp',
+        model: modelName.value,
         prompt: text.value,
+        suffix: '',
+        top_p: 1,
+        temperature: 1,
         stream: true,
       }),
       signal: abortSignal,
